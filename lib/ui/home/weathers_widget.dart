@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:weatherflut/model/city.dart';
@@ -21,27 +22,7 @@ class WeathersWidget extends StatefulWidget {
 }
 
 class _WeathersWidgetState extends State<WeathersWidget> {
-  double page = 0.0;
-  final controller = PageController();
-
-  void onListener() {
-    setState(() {
-      page = controller.page;
-    });
-  }
-
-  @override
-  void initState() {
-    controller.addListener(onListener);
-    super.initState();
-  }
-
-  @override
-  void dispose() {
-    controller.removeListener(onListener);
-    controller.dispose();
-    super.dispose();
-  }
+  int _currentIndex = 0;
 
   void handleArrowPressed(City city) {
     showBottomSheet(
@@ -61,31 +42,66 @@ class _WeathersWidgetState extends State<WeathersWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final weather = widget.cities[_currentIndex].weathers.first;
     return Stack(
+      fit: StackFit.expand,
       children: [
+        Positioned.fill(
+          child: AnimatedSwitcher(
+            layoutBuilder: (currentChild, previousChildren) {
+              return Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+                alignment: Alignment.center,
+              );
+            },
+            duration: Duration(
+              milliseconds: 600,
+            ),
+            child: Image.asset(
+              'assets/background_states/${weather.weatherStateAbbr}.jpg',
+              fit: BoxFit.cover,
+              key: Key(weather.weatherStateAbbr),
+            ),
+          ),
+        ),
         PageView.builder(
+          onPageChanged: (val) {
+            setState(() {
+              _currentIndex = val;
+            });
+          },
           physics: const ClampingScrollPhysics(),
-          controller: controller,
           itemCount: widget.cities.length,
           itemBuilder: (context, index) {
             final city = widget.cities[index];
-            double opacity = (index - page).abs();
-            if (opacity > 1) opacity = 1;
-            return Opacity(
-              opacity: 1, //opacity: (index == page.toInt()) ? 1 : 1 - opacity,
-              child: WeatherItem(
-                city: city,
-                onTap: () => handleArrowPressed(city),
-              ),
+            return WeatherItem(
+              city: city,
+              onTap: () => handleArrowPressed(city),
             );
           },
         ),
         Positioned(
           left: 20,
           top: 20,
-          child: IconButton(
-            icon: Icon(Icons.add),
-            onPressed: widget.onTap,
+          child: SafeArea(
+            child: IconButton(
+              icon: Icon(Icons.add),
+              onPressed: widget.onTap,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 20,
+          top: 20,
+          child: SafeArea(
+            child: IconButton(
+              icon: Icon(Icons.settings),
+              onPressed: widget.onTap,
+            ),
           ),
         ),
       ],
@@ -106,14 +122,9 @@ class WeatherItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final weather = city.weathers.first;
-    final background = weather.weatherStateAbbr;
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image.asset(
-          'assets/background_states/$background.jpg',
-          fit: BoxFit.cover,
-        ),
         SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -148,14 +159,26 @@ class WeatherItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      weather.theTemp.toInt().toString(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        shadows: shadows,
-                        fontSize: 70,
+                    TweenAnimationBuilder<int>(
+                      tween: IntTween(
+                        begin: 0,
+                        end: weather.theTemp.toInt(),
                       ),
+                      duration: const Duration(
+                        milliseconds: 800,
+                      ),
+                      builder: (context, value, child) {
+                        return Text(
+                          value.toString(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            shadows: shadows,
+                            fontSize: 75,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
                     ),
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
@@ -186,17 +209,97 @@ class WeatherItem extends StatelessWidget {
               const SizedBox(
                 height: 70,
               ),
-              Center(
-                child: IconButton(
-                  onPressed: onTap,
-                  icon: Icon(
-                    Icons.keyboard_arrow_up,
-                    color: Colors.white,
-                    size: 40,
-                  ),
-                ),
-              ),
             ],
+          ),
+        ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 30.0),
+            child: IconButton(
+              onPressed: onTap,
+              icon: Icon(
+                Icons.keyboard_arrow_up,
+                color: Colors.white,
+                size: 50,
+              ),
+            ),
+          ),
+        ),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Row(children: [
+                  Expanded(
+                    child: _WeatherItemDetails(
+                      title: 'Viento',
+                      value: "${weather.windSpeed.toStringAsFixed(2)} mph",
+                    ),
+                  ),
+                  Expanded(
+                    child: _WeatherItemDetails(
+                      title: 'Presión de aire',
+                      value: '${weather.airPressure.toStringAsFixed(2)} mbar',
+                    ),
+                  ),
+                  Expanded(
+                    child: _WeatherItemDetails(
+                      title: 'Humedad',
+                      value: '${weather.humidity}%',
+                    ),
+                  ),
+                ]),
+                const SizedBox(
+                  height: 15,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _WeatherItemDetails(
+                      title: 'Temp min',
+                      value: weather.minTemp.toStringAsFixed(2),
+                    ),
+                    _WeatherItemDetails(
+                      title: 'Temp Max',
+                      value: weather.maxTemp.toStringAsFixed(2),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WeatherItemDetails extends StatelessWidget {
+  final String title;
+  final String value;
+
+  const _WeatherItemDetails({Key key, this.title, this.value}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        Text(
+          title,
+          style: TextStyle(color: Colors.white, shadows: shadows),
+        ),
+        const SizedBox(
+          height: 15,
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: Colors.white,
+            shadows: shadows,
           ),
         ),
       ],
